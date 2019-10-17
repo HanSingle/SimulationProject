@@ -1,0 +1,429 @@
+---
+title: "POT-IRT-Simulation-V1.1-Presentation"
+author: "Han"
+date: "2019/10/10 (updated: `r Sys.Date()`)"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+      beforeInit: "macros.js"
+
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+
+library(psych)
+library(MASS)
+library(lavaan)
+library(semPlot)
+library(DT)
+
+```
+
+class: inverse, left, middle
+
+# Concepts
+
+---
+## The General Factor Of Intelligence
+
+### Spearman's g
+- Positive manifold
+
+- Common variance among intelligence tests
+
+--
+
+### CHC Model
+- The higher-order factor that accounts for common variance among broad ability factors
+
+--
+
+### g ~ 40-50% variance among intelligence tests
+
+--
+
+### Predictor of various outcomes
+
+---
+## Is g a psychological attribute?
+
+### Yes (Spearman, 1904)
+- The g factor is that it represents a general cognitive ability, or general intelligence (Gottfredson, 1997)
+
+- Then what is this ability?
+
+### Not necessarily (Thomson, 1916)
+- The g factor may be merely an index of various cognitive abilities measured in an intelligence test. 
+
+- g can emerge when multiple cognitive process are involved in the performance of tests and are sampled across a battery of tests.
+
+- g is caused by **an overlap of processes** tapped by different tests.  
+---
+background-image: url('https://miro.medium.com/max/600/0*6pfb8IIpkihGKZT6.png')
+background-position: 50% 50%
+## Process Overlap Theory (POT)
+---
+
+## Purpose
+
+--
+
+### Use simulation approach to demonstrate that the positive manifold can emerge from the covariance among test scores in the absence of a general cognitive ability.
+
+--
+
+### Demonstrate how broad abilities factors emerge from the introduction of a distinction between domain-general and domain-specific processes, and from the manipulation of the probabilities that each type of process is sampled by different types of tests.
+
+---
+
+## Summary Of simulation Procedure
+
+--
+
+### Specification of cognitive processes
+- 4 types of processes: Executive function, fluid reasoning, verbal, spatial
+- Orthogonal, from a standardized multivariate normal distribution
+
+--
+
+### Calculation of aggregated process ability values
+- Process Overlap Model (POT) vs. General Sampling Model (GSM)
+
+--
+
+### Simulation of item responses
+- Multidimentional IRT function
+- $a_{i} = 1$ and $b_{i} = N(0,1)$
+
+--
+
+### Confirmatory factor analyses
+- uni-factor model vs. higher-order model
+
+---
+class: inverse, left, middle
+
+# Simulations
+---
+## Basic Parameters
+```{r, echo = TRUE}
+# For reproduction purpose
+set.seed(020)
+
+# Sample size, num of subjects
+np <- 1000
+# Number of tasks
+nt <- 9
+# Items per task
+ni <- 100
+
+# Number of Executive Functioning processes
+ne <- 50
+# Fluid only processes
+nf <- 50
+# Domain specific processes, Verbal and Spatial(Visual)
+nv <- 50
+ns <- 50
+# Total number of all processes
+nc <- ne + nf + nv + ns
+```
+---
+## Sampling Probabilities (GSM)
+
+- We need to specify the numbers of processes that are being randomly sampled in a test.
+
+- In GSM, no domains are specified when sampling the cognitive processes
+
+- when performing any item from any of the 9 tasks, the probabilities of the 200 cognitive processes being sampled are all equal.
+
+- In this GSM simulation, the probability is .10. Therefore for each item, a total of about 20 processes is sampled.
+
+```{r, echo = TRUE}
+# p of any process from the 200 being asampled in a test
+
+pgs <- .10
+
+```
+---
+## Sampling Probabilities (POT)
+
+- In POT, the probabilities are dependent on the test type and process type.
+
+- Executive function processes should be sampled across any type of tasks, while domain-specific processes are aonly sampled in their relevant type of tasks.
+
+- The probability of an exceutive function process being sampled in a fluid task is set higher than that in a verbal/spatial task
+
+- For each item in the POT simulation, there is also a total of about 20 processes being sampled.
+
+```{r, echo = TRUE}
+# p of an E process being sampled in a domain general task 
+pef <- .28 #<<
+# p of a F process being sampled in a domain general task
+pff <- .12
+# p of an E process being sampled in a domain specific task 
+pde <- .12 #<<
+# p of a V/S process being sampled in a domain specific task (V/S)
+pds <- .28
+
+```
+---
+### Data Generation (POT Example)
+
+```{r, echo = FALSE}
+P.pot <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+OBS.pot <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+P.gsm <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+OBS.gsm <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+```
+
+```{r, echo = FALSE}
+G <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+S <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+E <- array(rep(0, np*nt*ni), dim = c(np,nt,ni))
+```
+
+```{r, echo = FALSE}
+mu <- rep(0, nc) # Mean
+sig <- rep(1, nc) # SD
+psi <- diag(sig)
+dat <- mvrnorm(np,mu,psi) # Process Matrix (np*nc)
+```
+
+```{r, echo = FALSE}
+bmu <- rep(0, ni)
+bsig <- rep(1, ni)
+bpsi <- diag(bsig) # Creating a varing b parameter matrix
+vg <- as.vector(mvrnorm(nt, bmu, bpsi))# difficulty parameters for domain general processes (nt*ni elements)
+vs <- as.vector(mvrnorm(nt, bmu, bpsi))# difficulty parameters for domain specific processes(nt*ni elements)
+bg <- as.vector(t(replicate(np, vg)))# Replicate and reformate the nt*ni elements np times
+bs <- as.vector(t(replicate(np, vs)))# same for domain specific processes
+Bg <- array(bg, dim = c(np,nt,ni)) # difficulty parameters array for domain general processes (np*nt*ni)
+Bs <- array(bs, dim = c(np,nt,ni)) # difficulty parameters array for domain specific processes(np*nt*ni)
+```
+
+```{r, echo = FALSE}
+## POT
+
+# Data generation
+
+for(id in 1:np)
+{
+  for(task in 1:nt)
+  {
+    # Choose domains and probabilities based on task
+    if (task <= nt/3)
+    {
+      pg = pef
+      ps = pff
+      DSP = (ne+1):(ne+nf)
+    } else if (task <= 2*nt/3)
+    {
+      pg = pde
+      ps = pds
+      DSP = (ne+nf+1):(ne+nf+nv)
+    } else
+    {
+      pg = pde
+      ps = pds
+      DSP = (ne+nf+nv+1):nc
+    }
+    
+    # Looping through every item of every task for every subject
+    for(item in 1:ni)
+    {
+      thetaG <- dat[id, 1:ne]%*%rbinom(ne, 1, pg)
+      thetaS <- dat[id, DSP]%*%rbinom(nf, 1, ps)
+      G[id,task,item] <- thetaG
+      S[id,task,item] <- thetaS
+    }
+  }
+}
+
+```
+
+```{r, echo = FALSE}
+# Scaling the theta values of each item across subjects
+thG <- apply(G, c(2,3), scale)
+thS <- apply(S,c(2,3),scale)
+
+# IRT functions, different algorisms included, uncomment corresponding line of codes to utilize
+
+# original product of Ps, non-compensatory with varying b parameters across items
+#P <- ((1+exp(Bg - thG))*(1+exp(Bs - thS)))^(-1)
+# original product of Ps, non-compensatory with b = 0
+#P <- ((1+exp(-thG))*(1+exp(-thS)))^(-1)
+# square-rooted product of Ps, non-compensatory with varying b parameters across items
+P.pot <- sqrt(((1+exp(Bg-thG))*(1+exp(Bs-thS)))^(-1))
+
+# Full Compensatory, p as a function of the average of two thetas 
+#P <- (1+ exp((Bg + Bs - thG - thS)/2))^(-1)
+# Full Compensatory, p as an average of the functions of two thetas 
+#P <- ((1+exp(Bg-thG))^(-1) + (1+exp(Bs-thS))^(-1))/2
+
+# Generating the observations (0 & 1s) according to the p values of each item
+OBS.pot <- apply(P.pot, c(1,2,3), function(x) rbinom(1,1,p = x))
+
+# Calculating the total scores of each task
+Scores.pot <- apply(OBS.pot, c(1,2), sum)
+
+# Organizing the data frame
+obsdata.pot <- as.data.frame(Scores.pot)
+names(obsdata.pot) <- c("F1","F2","F3","V1","V2","V3","S1","S2","S3")
+cortable.pot <- cor(obsdata.pot)
+
+```
+
+```{r, echo = FALSE}
+## GSM
+
+## Data generation
+
+for(id in 1:np)
+{
+  for(task in 1:nt)
+  {
+    # Choose domains and probabilities based on task, in GSM there is no difference across the 9 tasks
+    pe = pgs
+    
+    # Looping through every item of every task for every subject
+    for(item in 1:ni)
+    {
+      thetaE <- dat[id,]%*%rbinom(nc, 1, pe)
+      E[id,task,item] <- thetaE
+    }
+  }
+}
+```
+
+```{r, echo = FALSE}
+
+thE <- apply(E, c(2,3), scale)
+
+P.gsm <- (1+exp((Bg+Bs)/2-thE))^(-1)
+OBS.gsm <- apply(P.gsm, c(1,2,3), function(x) rbinom(1,1,p = x))
+
+Scores.gsm <- apply(OBS.gsm, c(1,2), sum)
+obsdata.gsm <- as.data.frame(Scores.gsm)
+names(obsdata.gsm) <- c("F1","F2","F3","V1","V2","V3","S1","S2","S3")
+cortable.gsm <- cor(obsdata.gsm)
+```
+
+```{r, echo = FALSE, tidy = FALSE}
+
+DT::datatable(obsdata.pot, fillContainer = FALSE, options = list(pageLength = 7))
+
+```
+
+---
+### Descriptives (POT)
+```{r, echo = FALSE}
+descriptives <- psych::describe(obsdata.pot, range = FALSE)
+
+knitr::kable(round(descriptives,2), format = 'html', table.attr = "style = 'width: 75%;'")
+
+```
+---
+### Correlation Matrices
+```{r, echo = FALSE, fig.height=5.5, dev='svg'}
+par(mar = c(1,2,3,1), mfrow = c(1,2))
+corrplot::corrplot.mixed(cortable.pot, tl.col = "black", title = "\n\n\n\nPOT")
+corrplot::corrplot.mixed(cortable.gsm, tl.col = "black", title = "\n\n\n\nGSM")
+```
+
+
+---
+## Model Specification
+
+- Both a uni-factor model and a higher-order model are specified for comparing the fits of POT data and GSM data
+
+```{r echo = TRUE}
+# Uni-factor Model
+o.model <- '
+
+  o =~ V1 + V2 + V3 + F1 + F2 + F3 + S1 + S2 + S3
+
+'
+# Higher-order model
+g.model <- ' 
+
+  Verbal =~ V1 + V2 + V3 
+  Fluid  =~ F1 + F2 + F3
+  Spatial =~ S1 + S2 + S3 
+  
+  g =~ Fluid + Verbal + Spatial
+
+'
+```
+
+---
+## Model Fits
+- POT: Process Overlap Model
+- GSM: General Sampling Model
+- O: Uni-factor Model
+- g: Higher-order Model
+
+```{r, echo = FALSE, warning = FALSE}
+  
+# Model fitting
+pot.o <- sem(o.model, data = obsdata.pot, orthogonal=TRUE, fixed.x=FALSE)
+pot.g <- sem(g.model, data = obsdata.pot, orthogonal=TRUE, fixed.x=FALSE)
+
+# Model summary
+# summary(pot.o, fit.measures = TRUE, standardized = TRUE)
+# summary(pot.g, fit.measures = TRUE, standardized = TRUE)
+fm.pot.o <- as.vector(fitmeasures(pot.o))
+fm.pot.g <- as.vector(fitmeasures(pot.g))
+
+# Model fitting
+gsm.o <- sem(o.model, data = obsdata.gsm, orthogonal=TRUE, fixed.x=FALSE)
+gsm.g <- sem(g.model, data = obsdata.gsm, orthogonal=TRUE, fixed.x=FALSE)
+
+# Model summary
+# summary(gsm.o, fit.measures = TRUE, standardized = TRUE)
+# summary(gsm.g, fit.measures = TRUE, standardized = TRUE)
+fm.gsm.o <- as.vector(fitmeasures(gsm.o))
+fm.gsm.g <- as.vector(fitmeasures(gsm.g))
+
+tb.pot.o<-c(round(fm.pot.o[c(3,4,5,9,38,23,29,19)],2))
+tb.pot.g<-c(round(fm.pot.g[c(3,4,5,9,38,23,29,19)],2))
+tb.gsm.o<-c(round(fm.gsm.o[c(3,4,5,9,38,23,29,19)],2))
+tb.gsm.g<-c(round(fm.gsm.g[c(3,4,5,9,38,23,29,19)],2))
+
+FitTable <- as.data.frame(rbind(tb.pot.o,tb.pot.g,tb.gsm.o,tb.gsm.g), row.names = c("POT-O","POT-G","GSM-O","GSM-G"))
+colnames(FitTable) <- c("chi-squared","df","p","CFI","GFI","RMSEA","SRMR","AIC")
+knitr::kable(FitTable, format = 'html',table.attr = "style = 'width: 90%;'")
+
+```
+
+---
+## One Factor Models
+- Left: POT; Right: GSM
+```{r, echo = FALSE, fig.height = 5, fig.width = 10, dev='svg'}
+# Plotting
+par(mar = c(0.5,0.5,1,0.1), mfrow = c(1,2))
+semPaths(pot.o, what = "std", layout = "tree2",edge.label.cex = 1, edge.label.position = 0.8)
+semPaths(gsm.o, what = "std", layout = "tree2",edge.label.cex = 1,edge.label.position = 0.8)
+
+```
+---
+## Three Factor Models
+- Left: POT; Right: GSM
+```{r, echo = FALSE, fig.height = 5, fig.width = 10, dev='svg'}
+# Plotting
+par(mar = c(0.5,0.5,1,0.1), mfrow = c(1,2))
+semPaths(pot.g, what = "std", layout = "tree2",edge.label.cex = 1,edge.label.position = 0.8)
+semPaths(gsm.g, what = "std", layout = "tree2",edge.label.cex = 1,edge.label.position = 0.8)
+
+```
+---
+class: center, middle
+
+# Thanks!
+
+Slides were created via the R package [**xaringan**](https://github.com/yihui/xaringan).  
+Scripts and files are available at my [**github page**](https://github.com/HanSingle/HanSingle.github.io/). 
